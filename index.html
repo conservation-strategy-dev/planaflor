@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Moderustic:wght@300..800&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Oswald:wght@200..700&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Varela&display=swap" rel="stylesheet">
+    <title>Valoração - Planaflor</title>
+
+    <!-- Biblioteca D3.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.4/d3.min.js"></script>
+    <style>
+        .chart {
+            margin-top: 20px;
+        }
+        .bar:hover {
+            fill: orange;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            padding: 5px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .dropdown {
+            margin-bottom: 20px;
+        }
+        .radio-group {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Resultados da Valoração</h1>
+
+    <!-- Dropdown para selecionar o Cenário -->
+    <div class="dropdown">
+        <label for="cenarioSelect">Selecione o Cenário: </label>
+        <select id="cenarioSelect">
+            <option value="all">Todos os Cenários</option>
+        </select>
+    </div>
+
+    <!-- Radio buttons para escolher entre Valores Absolutos e Valores por Hectare -->
+    <div class="radio-group">
+        <label><input type="radio" name="valueType" value="Valor" checked> Valores Absolutos</label>
+        <label><input type="radio" name="valueType" value="Valores_ha"> Valores por Hectare</label>
+    </div>
+    <h2>Resultados por UF</h2>
+    <div id="chartEstado" class="chart"></div>
+    
+    <h2>Resultados por Bioma</h2>
+
+    <div id="chartBioma" class="chart"></div>
+
+    <!-- Tooltip para mostrar os valores -->
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+        // Função para formatar números com separador de milhares e sem casas decimais
+        const formatCurrency = d3.format(",.0f");
+
+        let originalData; // Variável global para armazenar os dados originais
+        let currentValueType = "Valor"; // Padrão inicial (Valores Absolutos)
+
+        // Carregar o CSV com ponto e vírgula como delimitador
+        d3.dsv(";", "planaflor.csv").then(function(data) {
+            // Converter os valores para número
+            data.forEach(d => {
+                d.Valor = +d.Valor;
+                d.Valores_ha = +d.Valores_ha;
+            });
+
+            originalData = data;  // Armazenar os dados originais para o filtro
+
+            // Preencher o dropdown com os valores únicos da coluna "Cenário"
+            populateDropdown(data);
+
+            // Atualizar os gráficos com base no Cenário e no Tipo de Valor selecionado
+            updateCharts("all");
+
+            // Adicionar eventos nos radio buttons para mudar o tipo de valor
+            d3.selectAll('input[name="valueType"]').on("change", function() {
+                currentValueType = this.value;  // Atualizar o tipo de valor (Valor ou Valores_ha)
+                const selectedCenario = d3.select("#cenarioSelect").property("value");  // Cenário atual selecionado
+                updateCharts(selectedCenario);
+            });
+        }).catch(function(error) {
+            console.error('Erro ao carregar o arquivo CSV:', error);
+        });
+
+        // Função para preencher a lista suspensa com os valores únicos de "Cenário"
+        function populateDropdown(data) {
+            const cenarioOptions = Array.from(new Set(data.map(d => d.Cenário))); // Pegar os valores únicos de "Cenário"
+            const select = d3.select("#cenarioSelect");
+
+            // Adicionar as opções no dropdown
+            cenarioOptions.forEach(cenario => {
+                select.append("option")
+                    .attr("value", cenario)
+                    .text(cenario);
+            });
+
+            // Adicionar evento de mudança no dropdown
+            select.on("change", function() {
+                const selectedCenario = this.value;
+                updateCharts(selectedCenario);
+            });
+        }
+
+// Função para filtrar e atualizar os gráficos
+function updateCharts(cenario) {
+    let filteredData;
+
+    // Se o cenário for "all", mostrar todos os dados, caso contrário, filtrar por "Cenário"
+    if (cenario === "all") {
+        filteredData = originalData;
+    } else {
+        filteredData = originalData.filter(d => d.Cenário === cenario);
+    }
+
+    // Agrupar os dados filtrados por Estado e somar os valores conforme o tipo de valor atual
+    const aggregatedDataEstado = d3.rollup(filteredData, 
+        v => d3.sum(v, d => d[currentValueType]),  // Soma dos valores com base no tipo (Valor ou Valores_ha)
+        d => d.Estado  // Agrupar por estado
+    );
+
+    // Converter o resultado em um array de objetos
+    const formattedDataEstado = Array.from(aggregatedDataEstado, ([Estado, Valor]) => ({ Estado, Valor }));
+
+    // Atualizar o gráfico de barras por Estado
+    createBarChart("#chartEstado", formattedDataEstado, "Estado");
+
+    // Verificar se estamos trabalhando com valores absolutos ou valores por hectare para o gráfico de bioma
+    let formattedDataBioma;
+    if (currentValueType === "Valor") {
+        // Agrupar os dados filtrados por Bioma e somar os valores (para valores absolutos)
+        const aggregatedDataBioma = d3.rollup(filteredData, 
+            v => d3.sum(v, d => d[currentValueType]),  // Soma dos valores absolutos
+            d => d.Bioma  // Agrupar por bioma
+        );
+
+        formattedDataBioma = Array.from(aggregatedDataBioma, ([Bioma, Valor]) => ({ Bioma, Valor }));
+    } else {
+        // Para "Valores_ha", não somamos, apenas mostramos os valores diretamente
+        formattedDataBioma = filteredData.map(d => ({
+            Bioma: d.Bioma,
+            Valor: d.Valores_ha  // Usar o valor por hectare diretamente
+        }));
+    }
+
+    // Atualizar o gráfico de barras por Bioma
+    createBarChart("#chartBioma", formattedDataBioma, "Bioma");
+}
+
+
+        // Função para criar o gráfico de barras
+        function createBarChart(container, data, labelType) {
+            // Definir as dimensões do gráfico
+            const width = 800;
+            const height = 400;
+            const margin = { top: 20, right: 30, bottom: 40, left: 50 };
+
+            // Remover o gráfico existente antes de criar um novo
+            d3.select(container).selectAll("svg").remove();
+
+            // Criar o SVG para o gráfico
+            const svg = d3.select(container)
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+            // Criar escalas
+            const xScale = d3.scaleBand()
+                .domain(data.map(d => d[labelType]))
+                .range([margin.left, width - margin.right])
+                .padding(0.1);
+
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.Valor)]).nice()
+                .range([height - margin.bottom, margin.top]);
+
+            // Adicionar eixos
+            svg.append("g")
+                .attr("transform", `translate(0, ${height - margin.bottom})`)
+                .call(d3.axisBottom(xScale));
+
+            svg.append("g")
+                .attr("transform", `translate(${margin.left}, 0)`)
+                .call(d3.axisLeft(yScale));
+
+            // Selecionar tooltip
+            const tooltip = d3.select("#tooltip");
+
+            // Criar as barras
+            svg.selectAll(".bar")
+                .data(data)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", d => xScale(d[labelType]))
+                .attr("y", d => yScale(d.Valor))
+                .attr("width", xScale.bandwidth())
+                .attr("height", d => height - margin.bottom - yScale(d.Valor))
+                .attr("fill", "steelblue")
+                .on("mouseover", function(event, d) {
+                    d3.select(this).attr("fill", "orange");
+                    tooltip.transition().duration(200).style("opacity", 1);
+                    tooltip.html(`${labelType}: ${d[labelType]}<br>Valor: R$ ${formatCurrency(d.Valor)}`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", function() {
+                    d3.select(this).attr("fill", "steelblue");
+                    tooltip.transition().duration(200).style("opacity", 0);
+                });
+        }
+    </script>
+</body>
+</html>
