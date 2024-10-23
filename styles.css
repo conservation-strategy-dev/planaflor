@@ -3,12 +3,21 @@
 }
 
 h1 {
-    color: #355E91;
+    color: #ffffff;
 }
 
+.topnav {
+    background-color: #355E91;
+    overflow: hidden;
+    text-align: center;
+  }
 
 .chart {
     padding-left: 5rem;
     padding-bottom: 2rem;
 
+}
+
+.dropdown {
+    padding-top: 1.5rem;
 }
