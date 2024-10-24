@@ -39,9 +39,13 @@
     </style>
 </head>
 <body>
-    
+
     <div class="topnav">
-        <h1>Resultados da Valoração</h1>
+        <div>
+            <img src="https://asset.brandfetch.io/idRUcHpOLl/idoBOKuc1d.png" alt="Logo da Organização" />
+        </div>
+        <h1 style="display: inline;">Resultados da Valoração</h1>
+        <p>Atualizado em: 24/10/2024</p>
 
     </div>
 
@@ -60,10 +64,13 @@
     </div>
     <h2>Resultados por UF</h2>
     <div id="chartEstado" class="chart"></div>
+    <div id="chartComparacaoEstado"></div>
+    
 
     <h2>Resultados por Bioma</h2>
 
     <div id="chartBioma" class="chart"></div>
+    <div id="chartComparacaoBioma"></div>
 
     <!-- Tooltip para mostrar os valores -->
     <div id="tooltip" class="tooltip"></div>
@@ -121,6 +128,9 @@
         }
 
 // Função para filtrar e atualizar os gráficos
+// Função para filtrar e atualizar os gráficos
+// Função para filtrar e atualizar os gráficos
+// Função para filtrar e atualizar os gráficos
 function updateCharts(cenario) {
     let filteredData;
 
@@ -131,75 +141,243 @@ function updateCharts(cenario) {
         filteredData = originalData.filter(d => d.Cenário === cenario);
     }
 
-    // Agrupar os dados filtrados por Estado e somar os valores conforme o tipo de valor atual
+    // Atualizar gráfico por Estado (já existente)
     const aggregatedDataEstado = d3.rollup(filteredData, 
         v => d3.sum(v, d => d[currentValueType]),  // Soma dos valores com base no tipo (Valor ou Valores_ha)
         d => d.Estado  // Agrupar por estado
     );
-
-    // Converter o resultado em um array de objetos
     const formattedDataEstado = Array.from(aggregatedDataEstado, ([Estado, Valor]) => ({ Estado, Valor }));
-
-    // Atualizar o gráfico de barras por Estado
     createBarChart("#chartEstado", formattedDataEstado, "Estado");
 
-    // Verificar se estamos trabalhando com valores absolutos ou valores por hectare para o gráfico de bioma
+    // Atualizar gráfico por Bioma (já existente)
     let formattedDataBioma;
     if (currentValueType === "Valor") {
-        // Agrupar os dados filtrados por Bioma e somar os valores (para valores absolutos)
         const aggregatedDataBioma = d3.rollup(filteredData, 
             v => d3.sum(v, d => d[currentValueType]),  // Soma dos valores absolutos
             d => d.Bioma  // Agrupar por bioma
         );
-
         formattedDataBioma = Array.from(aggregatedDataBioma, ([Bioma, Valor]) => ({ Bioma, Valor }));
     } else {
-        // Para "Valores_ha", não somamos, apenas mostramos os valores diretamente
         formattedDataBioma = filteredData.map(d => ({
             Bioma: d.Bioma,
             Valor: d.Valores_ha  // Usar o valor por hectare diretamente
         }));
     }
-
-    // Atualizar o gráfico de barras por Bioma
     createBarChart("#chartBioma", formattedDataBioma, "Bioma");
+
+    // Gráfico de comparação: serviços ecossistêmicos vs. pecuária por Bioma
+    const comparisonDataBioma = Array.from(d3.rollup(filteredData, 
+        v => ({
+            ValorServicos: d3.sum(v, d => d[currentValueType]),  // Soma dos serviços ecossistêmicos
+            ValorPecuaria: d3.sum(v, d => d.Valor_pecuaria || 0)  // Soma dos valores de pecuária, tratando undefined como 0
+        }),
+        d => d.Bioma  // Agrupar por bioma
+    ), ([Bioma, { ValorServicos, ValorPecuaria }]) => ({
+        Bioma,
+        ValorServicos,
+        ValorPecuaria
+    }));
+
+    createComparisonChart("#chartComparacaoBioma", comparisonDataBioma, "Bioma");
+
+    // Gráfico de comparação: serviços ecossistêmicos vs. pecuária por Estado
+    const comparisonDataEstado = Array.from(d3.rollup(filteredData, 
+        v => ({
+            ValorServicos: d3.sum(v, d => d[currentValueType]),  // Soma dos serviços ecossistêmicos
+            ValorPecuaria: d3.sum(v, d => d.Valor_pecuaria || 0)  // Soma dos valores de pecuária
+        }),
+        d => d.Estado  // Agrupar por estado
+    ), ([Estado, { ValorServicos, ValorPecuaria }]) => ({
+        Estado,
+        ValorServicos,
+        ValorPecuaria
+    }));
+
+    createComparisonChart("#chartComparacaoEstado", comparisonDataEstado, "Estado");
 }
 
 
-        // Função para criar o gráfico de barras
-        function createBarChart(container, data, labelType) {
-            // Definir as dimensões do gráfico
-            const width = 800;
-            const height = 400;
-            const margin = { top: 20, right: 30, bottom: 40, left: 50 };
+        // Função para criar o gráfico comparativo entre serviços ecossistêmicos e pecuária
+// Função para criar o gráfico comparativo entre serviços ecossistêmicos e pecuária
+// Função para criar o gráfico comparativo entre serviços ecossistêmicos e pecuária
+// Função para criar o gráfico comparativo entre serviços ecossistêmicos e pecuária
+function createComparisonChart(selector, data, label) {
+    // Limpar o gráfico existente
+    d3.select(selector).selectAll("*").remove();
 
-            // Remover o gráfico existente antes de criar um novo
-            d3.select(container).selectAll("svg").remove();
+    const margin = {top: 40, right: 30, bottom: 40, left: 60},
+        width = 700 - margin.left - margin.right,
+        height = 400 - margin.top - margin.bottom;
 
-            // Criar o SVG para o gráfico
-            const svg = d3.select(container)
-                .append("svg")
-                .attr("width", width)
-                .attr("height", height);
+    const svg = d3.select(selector)
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
 
-            // Criar escalas
-            const xScale = d3.scaleBand()
-                .domain(data.map(d => d[labelType]))
-                .range([margin.left, width - margin.right])
-                .padding(0.1);
+    // Definir as escalas
+    const x = d3.scaleBand()
+        .domain(data.map(d => d[label]))  // Agrupar por UF ou Bioma
+        .range([0, width])
+        .padding(0.2);
 
-            const yScale = d3.scaleLinear()
-                .domain([0, d3.max(data, d => d.Valor)]).nice()
-                .range([height - margin.bottom, margin.top]);
+    const y = d3.scaleLinear()
+        .domain([0, d3.max(data, d => Math.max(d.ValorServicos, d.ValorPecuaria))])
+        .nice()
+        .range([height, 0]);
 
-            // Adicionar eixos
-            svg.append("g")
-                .attr("transform", `translate(0, ${height - margin.bottom})`)
-                .call(d3.axisBottom(xScale));
+    // Eixos
+    svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x));
 
-            svg.append("g")
-                .attr("transform", `translate(${margin.left}, 0)`)
-                .call(d3.axisLeft(yScale));
+        svg.append("g")
+    .call(d3.axisLeft(y).tickFormat(d => {
+        if (d >= 1e9) {
+            return (d / 1e9).toFixed(1) + " Bi";  // Para bilhões
+        } else if (d >= 1e6) {
+            return (d / 1e6).toFixed(1) + " Mi";  // Para milhões
+        } else if (d >= 1e3) {
+            return (d / 1e3).toFixed(1) + " mil";  // Para milhares
+        } else {
+            return d;  // Números menores não são formatados
+        }
+    }));
+
+
+    // Barras de serviços ecossistêmicos
+    svg.selectAll(".barServicos")
+        .data(data)
+        .enter()
+        .append("rect")
+        .attr("class", "barServicos")
+        .attr("x", d => x(d[label]))
+        .attr("y", d => y(d.ValorServicos))
+        .attr("width", x.bandwidth() / 2)
+        .attr("height", d => height - y(d.ValorServicos))
+        .attr("fill", "#69b3a2")
+        .on("mouseover", function(event, d) {
+            d3.select(this)
+              .attr("fill", "darkgreen");
+            showTooltip(`Serviços Ecossistêmicos: R$ ${d3.format(",.0f")(d.ValorServicos)}`, event);  // Formatar valor
+        })
+        .on("mousemove", function(event) {
+            d3.select(".tooltip")
+              .style("left", `${event.pageX + 10}px`)
+              .style("top", `${event.pageY + 10}px`);
+        })
+        .on("mouseout", function() {
+            d3.select(this)
+              .attr("fill", "#69b3a2");
+            hideTooltip();
+        });
+
+    // Barras de pecuária
+    svg.selectAll(".barPecuaria")
+        .data(data)
+        .enter()
+        .append("rect")
+        .attr("class", "barPecuaria")
+        .attr("x", d => x(d[label]) + x.bandwidth() / 2)
+        .attr("y", d => y(d.ValorPecuaria))
+        .attr("width", x.bandwidth() / 2)
+        .attr("height", d => height - y(d.ValorPecuaria))
+        .attr("fill", "#ff7f0e")
+        .on("mouseover", function(event, d) {
+            d3.select(this)
+              .attr("fill", "darkorange");
+            showTooltip(`Pecuária: R$ ${d3.format(",.0f")(d.ValorPecuaria)}`, event);  // Formatar valor
+        })
+        .on("mousemove", function(event) {
+            d3.select(".tooltip")
+              .style("left", `${event.pageX + 10}px`)
+              .style("top", `${event.pageY + 10}px`);
+        })
+        .on("mouseout", function() {
+            d3.select(this)
+              .attr("fill", "#ff7f0e");
+            hideTooltip();
+        });
+
+    // Adicionar a legenda
+    const legend = svg.append("g")
+        .attr("class", "legend")
+        .attr("transform", `translate(${width - 150}, 0)`);
+
+    legend.append("rect")
+        .attr("x", 0)
+        .attr("y", 0)
+        .attr("width", 15)
+        .attr("height", 15)
+        .attr("fill", "#69b3a2");
+
+    legend.append("text")
+        .attr("x", 20)
+        .attr("y", 12)
+        .text("Serviços Ecossistêmicos");
+
+    legend.append("rect")
+        .attr("x", 0)
+        .attr("y", 20)
+        .attr("width", 15)
+        .attr("height", 15)
+        .attr("fill", "#ff7f0e");
+
+    legend.append("text")
+        .attr("x", 20)
+        .attr("y", 32)
+        .text("Pecuária");
+}
+
+
+
+
+ // Função para criar o gráfico de barras
+function createBarChart(container, data, labelType) {
+    // Definir as dimensões do gráfico
+    const width = 800;
+    const height = 400;
+    const margin = { top: 20, right: 30, bottom: 40, left: 50 };
+
+    // Remover o gráfico existente antes de criar um novo
+    d3.select(container).selectAll("svg").remove();
+
+    // Criar o SVG para o gráfico
+    const svg = d3.select(container)
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    // Criar escalas
+    const xScale = d3.scaleBand()
+        .domain(data.map(d => d[labelType]))
+        .range([margin.left, width - margin.right])
+        .padding(0.1);
+
+    const yScale = d3.scaleLinear()
+        .domain([0, d3.max(data, d => d.Valor)]).nice()
+        .range([height - margin.bottom, margin.top]);
+
+    // Adicionar eixos
+    svg.append("g")
+        .attr("transform", `translate(0, ${height - margin.bottom})`)
+        .call(d3.axisBottom(xScale));
+
+    // Customizar o eixo Y com a formatação desejada
+    svg.append("g")
+        .attr("transform", `translate(${margin.left}, 0)`)
+        .call(d3.axisLeft(yScale).tickFormat(d => {
+            if (d >= 1e9) {
+                return (d / 1e9).toFixed(1) + " Bi";  // Para bilhões
+            } else if (d >= 1e6) {
+                return (d / 1e6).toFixed(1) + " Mi";  // Para milhões
+            } else if (d >= 1e3) {
+                return (d / 1e3).toFixed(1) + " mil";  // Para milhares
+            } else {
+                return d;  // Números menores não são formatados
+            }
+        }));
 
             // Selecionar tooltip
             const tooltip = d3.select("#tooltip");
@@ -227,5 +405,38 @@ function updateCharts(cenario) {
                 });
         }
     </script>
+        <script>
+            const tooltip = d3.select("body").append("div")
+                .attr("class", "tooltip")
+                .style("position", "absolute")
+                .style("background", "lightgray")
+                .style("border", "1px solid gray")
+                .style("padding", "5px")
+                .style("border-radius", "5px")
+                .style("pointer-events", "none")
+                .style("opacity", 0);
+    
+            function showTooltip(text, event) {
+                tooltip.transition().duration(200)
+                    .style("opacity", 1);
+    
+                tooltip.html(text)
+                    .style("left", `${event.pageX + 10}px`)
+                    .style("top", `${event.pageY + 10}px`);
+            }
+    
+            function hideTooltip() {
+                tooltip.transition().duration(200)
+                    .style("opacity", 0);
+            }
+        </script>
+
+<div class="topnav">
+    <div>
+        <img src="https://asset.brandfetch.io/idRUcHpOLl/idoBOKuc1d.png" alt="Logo da Organização" />
+    </div>
+    <p>© 2024 Copyright: All rights reserved.</p>
+
+</div>
 </body>
 </html>

@@ -2,8 +2,13 @@
     font-family: "Oswald", sans-serif;
 }
 
-h1 {
+h1, p {
     color: #ffffff;
+}
+
+img {
+    height: 4rem;
+    padding-top: 1rem;
 }
 
 .topnav {
@@ -20,4 +25,17 @@ h1 {
 
 .dropdown {
     padding-top: 1.5rem;
+}
+
+.tooltip {
+    position: absolute;
+    background-color: white;
+    border: 1px solid gray;
+    padding: 5px;
+    border-radius: 5px;
+    pointer-events: none;
+    font-size: 12px;
+    color: black;
+    opacity: 0;
+    transition: opacity 0.2s ease;
 }
